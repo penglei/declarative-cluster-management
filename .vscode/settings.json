@@ -8,5 +8,8 @@
         }
     ],
     "java.import.gradle.java.home": "/opt/zulujdk/current/zulu-17.jdk/Contents/Home",
-    "java.compile.nullAnalysis.mode": "disabled"
+    "java.compile.nullAnalysis.mode": "disabled",
+    "editor.formatOnSave": false,
+    "editor.formatOnPaste": false,
+    "editor.formatOnType": false
 }

@@ -1097,6 +1097,15 @@ public class OrToolsSolver implements ISolverBackend {
         final JavaFile javaFile = JavaFile.builder("com.vmware.dcm.backend", spec).build();
         LOG.info("Generating Java or-tools code: {}\n", javaFile);
 
+        // Write generated code to debug-generated-code.java in current directory
+        try {
+            final Path debugFilePath = Path.of("debug-generated-code");
+            javaFile.writeTo(debugFilePath);
+            LOG.info("Generated code written to: {}", debugFilePath.toAbsolutePath());
+        } catch (final IOException e) {
+            LOG.error("Failed to write debug generated code to file", e);
+        }
+
         // Compile Java code. This steps requires an SDK, and a JRE will not suffice
         final JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
         final StandardJavaFileManager fileManager = compiler.getStandardFileManager(null, null, null);
