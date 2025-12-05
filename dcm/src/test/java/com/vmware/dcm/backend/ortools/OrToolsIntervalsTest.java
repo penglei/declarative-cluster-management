@@ -13,6 +13,7 @@ import com.google.ortools.sat.CpSolverStatus;
 import com.google.ortools.sat.IntVar;
 import com.google.ortools.sat.IntervalVar;
 import com.google.ortools.sat.LinearExpr;
+import com.google.ortools.sat.Literal;
 import com.google.ortools.util.Domain;
 import org.junit.jupiter.api.Test;
 
@@ -80,13 +81,13 @@ public class OrToolsIntervalsTest {
         }
 
         // 2. Capacity constraints
-        model.addCumulative(tasksIntervals, taskDemands1, model.newConstant(maxCapacity1));
-        model.addCumulative(tasksIntervals, taskDemands2, model.newConstant(maxCapacity2));
+        model.addCumulative(model.newConstant(maxCapacity1)).addDemands(tasksIntervals, taskDemands1);
+        model.addCumulative(model.newConstant(maxCapacity2)).addDemands(tasksIntervals, taskDemands2);
 
         // Cumulative score
         final IntVar max1 = model.newIntVar(0, 10000000, "");
-        model.addCumulative(tasksIntervals, scores, max1);
-        model.minimize(max1);   // minimize max score
+        model.addCumulative(max1).addDemands(tasksIntervals, scores);
+        model.minimize(max1); // minimize max score
         System.out.println("Model creation: " + (System.currentTimeMillis() - now));
 
         // Create a solver and solve the model.
@@ -124,9 +125,9 @@ public class OrToolsIntervalsTest {
         final int numTasks = 50;
         final int numNodes = 100;
         final IntVar[] taskToNodeAssignment = new IntVar[numTasks];
-        final int[] taskDemands1 = new int[numTasks];
-        final int[] taskDemands2 = new int[numTasks];
-        final int[] scores = new int[numTasks];
+        final long[] taskDemands1 = new long[numTasks];
+        final long[] taskDemands2 = new long[numTasks];
+        final long[] scores = new long[numTasks];
 
         final int[] nodeCapacities1 = new int[numNodes];
         final int[] nodeCapacities2 = new int[numNodes];
@@ -152,29 +153,30 @@ public class OrToolsIntervalsTest {
         // 2. Capacity constraint
         final IntVar[] scoreVars = new IntVar[numNodes];
         for (int node = 0; node < numNodes; node++) {
-            final IntVar[] tasksOnNode = new IntVar[numTasks];    // indicator whether task is assigned to this node
+            final IntVar[] tasksOnNode = new IntVar[numTasks]; // indicator whether task is assigned to this node
             for (int i = 0; i < numTasks; i++) {
                 final IntVar bVar = model.newBoolVar("");
-                model.addEquality(taskToNodeAssignment[i], node).onlyEnforceIf(bVar);
-                model.addDifferent(taskToNodeAssignment[i], node).onlyEnforceIf(bVar.not());
+                model.addEquality(taskToNodeAssignment[i], node).onlyEnforceIf((Literal) bVar);
+                model.addDifferent(taskToNodeAssignment[i], node).onlyEnforceIf(((Literal) bVar).not());
                 tasksOnNode[i] = bVar;
             }
             final IntVar load1 = model.newIntVar(0, 10000000, "");
             final IntVar load2 = model.newIntVar(0, 10000000, "");
             final IntVar score = model.newIntVar(0, 10000000, "");
-            model.addEquality(load1, LinearExpr.scalProd(tasksOnNode, taskDemands1));  // cpu load = sum of all tasks
-            model.addEquality(load2, LinearExpr.scalProd(tasksOnNode, taskDemands2));  // mem load variable
-            model.addEquality(score, LinearExpr.scalProd(tasksOnNode, scores)); //score variable for this node
+            // cpu load = sum of all tasks
+            model.addEquality(load1, LinearExpr.weightedSum(tasksOnNode, taskDemands1));
+            model.addEquality(load2, LinearExpr.weightedSum(tasksOnNode, taskDemands2)); // mem load variable
+            model.addEquality(score, LinearExpr.weightedSum(tasksOnNode, scores)); // score variable for this node
 
             scoreVars[node] = score;
 
-            model.addLessOrEqual(load1, nodeCapacities1[node]);  // capacity constraints
+            model.addLessOrEqual(load1, nodeCapacities1[node]); // capacity constraints
             model.addLessOrEqual(load2, nodeCapacities2[node]);
         }
 
         final IntVar max1 = model.newIntVar(0, 10000000, "");
         model.addMaxEquality(max1, scoreVars);
-        model.minimize(max1);   // minimize max score
+        model.minimize(max1); // minimize max score
         System.out.println("Model creation: " + (System.currentTimeMillis() - now));
 
         // Create a solver and solve the model.
@@ -189,7 +191,6 @@ public class OrToolsIntervalsTest {
         }
         System.out.println("Done: " + (System.currentTimeMillis() - now));
     }
-
 
     @Test
     public void testWithIntervalsMany() {
@@ -232,7 +233,6 @@ public class OrToolsIntervalsTest {
             }
         }
 
-
         // 1. Symmetry breaking
         for (int i = 0; i < numTasks - 1; i++) {
             model.addLessOrEqual(taskToNodeAssignment[i], taskToNodeAssignment[i + 1]);
@@ -260,7 +260,7 @@ public class OrToolsIntervalsTest {
             model.addDivisionEquality(scaledDemand[i], prod, joinCapacityColumnValue[i]);
         }
 
-        model.addCumulative(tasksIntervals, scaledDemand, 1000);
+        model.addCumulative(model.newConstant(1000)).addDemands(tasksIntervals, scaledDemand);
 
         // Create a solver and solve the model.
         final CpSolver solver = new CpSolver();
@@ -274,16 +274,14 @@ public class OrToolsIntervalsTest {
             for (int i = 0; i < numTasks; i++) {
                 System.out.printf(
                         "%s %s %s %s %s%n",
-                            solver.value(taskToNodeAssignment[i]),
-                            taskDemands1[i],
-                            solver.value(joinCapacityColumnValue[i]),
-                            solver.value(scaledDemand[i]),
-                            solver.value(joinIndices[i])
-                        );
+                        solver.value(taskToNodeAssignment[i]),
+                        taskDemands1[i],
+                        solver.value(joinCapacityColumnValue[i]),
+                        solver.value(scaledDemand[i]),
+                        solver.value(joinIndices[i]));
             }
         }
     }
-
 
     @Test
     public void testWithAllowedAssignments() throws CpModel.WrongLength {
@@ -327,7 +325,6 @@ public class OrToolsIntervalsTest {
             }
         }
 
-
         // 1. Symmetry breaking
         for (int i = 0; i < numTasks - 1; i++) {
             model.addLessOrEqual(taskToNodeAssignment[i], taskToNodeAssignment[i + 1]);
@@ -348,10 +345,8 @@ public class OrToolsIntervalsTest {
                     Domain.fromValues(nodeCapacities1), "");
 
             // link join index -> joined capacity
-            model.addAllowedAssignments(
-                    new IntVar[]{taskToNodeAssignment[i], joinCapacityColumnValue[i]},
-                    allowedAssignments
-            );
+            model.addAllowedAssignments(new IntVar[] { taskToNodeAssignment[i], joinCapacityColumnValue[i] })
+                    .addTuples(allowedAssignments);
 
             // scaled demand
             final IntVar prod = model.newConstant(taskDemands1[i] * 1000);
@@ -359,7 +354,7 @@ public class OrToolsIntervalsTest {
             model.addDivisionEquality(scaledDemand[i], prod, joinCapacityColumnValue[i]);
         }
 
-        model.addCumulative(tasksIntervals, scaledDemand, 1000);
+        model.addCumulative(model.newConstant(1000)).addDemands(tasksIntervals, scaledDemand);
 
         // Create a solver and solve the model.
         final CpSolver solver = new CpSolver();
@@ -376,8 +371,7 @@ public class OrToolsIntervalsTest {
                         solver.value(taskToNodeAssignment[i]),
                         taskDemands1[i],
                         solver.value(joinCapacityColumnValue[i]),
-                        solver.value(scaledDemand[i])
-                );
+                        solver.value(scaledDemand[i]));
             }
         }
     }

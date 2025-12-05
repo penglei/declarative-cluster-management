@@ -11,6 +11,7 @@ import com.google.ortools.sat.CpSolverStatus;
 import com.google.ortools.sat.IntVar;
 import com.google.ortools.sat.IntervalVar;
 import com.google.ortools.sat.LinearExpr;
+import com.google.ortools.sat.Literal;
 import com.vmware.dcm.Model;
 import com.vmware.dcm.SolverException;
 import org.jooq.DSLContext;
@@ -36,12 +37,13 @@ public class CoreTest {
         final CpModel model = new CpModel();
         final IntVar i1 = model.newIntVar(0, 5, "i1");
         final IntVar i2 = model.newIntVar(0, 5, "i2");
-        final IntVar v1 = model.newBoolVar("v1");
-        final IntVar v2 = model.newBoolVar("v2");
-        final IntVar v3 = model.newBoolVar("v3");
+        final Literal v1 = model.newBoolVar("v1");
+        final Literal v2 = model.newBoolVar("v2");
+        final Literal v3 = model.newBoolVar("v3");
 
-        model.addGreaterOrEqual(LinearExpr.sum(new IntVar[]{i1, i2}), 11).onlyEnforceIf(v1); // can't be satisfied
-        model.addLessOrEqual(LinearExpr.sum(new IntVar[]{i1, i2}), 5).onlyEnforceIf(v2);
+        // can't be satisfied
+        model.addGreaterOrEqual(LinearExpr.sum(new IntVar[] { i1, i2 }), 11).onlyEnforceIf(v1);
+        model.addLessOrEqual(LinearExpr.sum(new IntVar[] { i1, i2 }), 5).onlyEnforceIf(v2);
         model.addEquality(v3, 1);
         model.addAssumption(v1);
         model.addAssumption(v2);
@@ -63,25 +65,25 @@ public class CoreTest {
         final CpModel model = new CpModel();
         final IntVar origin = model.newIntVar(0, 5, "i1");
         final IntVar i1 = model.newIntVar(0, 5, "i1o");
-        final IntVar assumptionVar1 = model.newBoolVar("Assumption 1");
+        final Literal assumptionVar1 = model.newBoolVar("Assumption 1");
         model.addEquality(origin, i1).onlyEnforceIf(assumptionVar1);
         model.addDifferent(origin, i1).onlyEnforceIf(assumptionVar1.not());
         final IntervalVar[] tasksIntervals = new IntervalVar[1];
-        tasksIntervals[0] = model.newOptionalIntervalVar(i1, model.newConstant(1),  model.newConstant(1),
+        tasksIntervals[0] = model.newOptionalIntervalVar(i1, model.newConstant(1), model.newConstant(1),
                 assumptionVar1, "");
 
         // Can't be satisfied
-        model.addCumulative(tasksIntervals, new IntVar[]{model.newConstant(11)}, model.newConstant(10));
+        model.addCumulative(model.newConstant(10)).addDemands(tasksIntervals, new long[] { 11 });
         model.addAssumption(assumptionVar1);
 
         final IntVar i2 = model.newIntVar(0, 5, "i2");
         final IntVar i3 = model.newIntVar(0, 5, "i3");
-        final IntVar assumptionVar2 = model.newBoolVar("Assumption 2");
-        final IntVar assumptionVar3 = model.newBoolVar("Assumption 3");
+        final Literal assumptionVar2 = model.newBoolVar("Assumption 2");
+        final Literal assumptionVar3 = model.newBoolVar("Assumption 3");
 
         // Can't be satisfied
-        model.addGreaterOrEqual(LinearExpr.sum(new IntVar[]{i2, i3}), 11).onlyEnforceIf(assumptionVar2);
-        model.addLessOrEqual(LinearExpr.sum(new IntVar[]{i2, i3}), 5).onlyEnforceIf(assumptionVar3);
+        model.addGreaterOrEqual(LinearExpr.sum(new IntVar[] { i2, i3 }), 11).onlyEnforceIf(assumptionVar2);
+        model.addLessOrEqual(LinearExpr.sum(new IntVar[] { i2, i3 }), 5).onlyEnforceIf(assumptionVar3);
         model.addAssumption(assumptionVar2);
         model.addAssumption(assumptionVar3);
 
